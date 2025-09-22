@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<!--
+ISTRUZIONI RAPIDE PER IL SETUP:
+
+1. Google Cloud Console (https://console.cloud.google.com):
+   - Nel progetto con API Key fornita, vai su "Credenziali"
+   - Modifica il Client OAuth 2.0 (ID: 706644322027-s214qi7lgiqs3j4uu4g74pf0hgm89uf4.apps.googleusercontent.com)
+   - Aggiungi nelle "Origini JavaScript autorizzate":
+     * https://tuousername.github.io (per GitHub Pages)
+     * http://localhost:8000 (per test locale)
+   - Aggiungi negli "URI di reindirizzamento autorizzati":
+     * https://tuousername.github.io/nome-repo
+     * http://localhost:8000
+
+2. Google Sheet Setup:
+   - Assicurati che il foglio sia condiviso in lettura pubblica
+   - Le colonne devono essere: A (Data), B (In Mattina), C (Out Mattina), 
+     D (In Pomeriggio), E (Out Pomeriggio), F (Note), G (Giorno)
+   - Range utilizzato: A:G
+
+3. Deploy:
+   - Salva questo file come index.html
+   - Carica su GitHub Pages, Netlify o Vercel
+   - IMPORTANTE: l'app funziona solo su HTTPS (o localhost per test)
+-->
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Timbrature</title>
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: #f2f2f7;
+    color: #1c1c1e;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* Header */
+.header {
+    background: #fff;
+    border-bottom: 1px solid #c6c6c8;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header h1 {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-ready { background: #e8f5e9; color: #2e7d32; }
+.status-connected { background: #e3f2fd; color: #1565c0; }
+.status-error { background: #ffebee; color: #c62828; }
+
+/* Main Content */
+.content {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 60px;
+}
+
+.page {
+    display: none;
+    padding: 16px;
+}
+
+.page.active {
+    display: block;
+}
+
+/* Tab Bar */
+.tab-bar {
+    background: #fff;
+    border-top: 1px solid #c6c6c8;
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    z-index: 100;
+}
+
+.tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.tab-item:active {
+    opacity: 0.6;
+}
+
+.tab-item.active {
+    color: #007aff;
+}
+
+.tab-icon {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.tab-label {
+    font-size: 11px;
+}
+
+/* Timbrature Buttons */
+.timbrature-grid {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.timbrature-btn {
+    background: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 20px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.timbrature-btn:active {
+    transform: scale(0.98);
+}
+
+.timbrature-btn .icon {
+    font-size: 28px;
+    margin-right: 12px;
+}
+
+.timbrature-btn .time {
+    font-size: 14px;
+    color: #8e8e93;
+    margin-left: auto;
+}
+
+.btn-ingresso { background: linear-gradient(135deg, #34c759, #30d158); color: white; }
+.btn-uscita { background: linear-gradient(135deg, #ff3b30, #ff453a); color: white; }
+
+/* Forms */
+.card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #8e8e93;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+label {
+    display: block;
+    font-size: 14px;
+    color: #636366;
+    margin-bottom: 8px;
+}
+
+select, input[type="text"], input[type="month"] {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #c6c6c8;
+    border-radius: 8px;
+    font-size: 16px;
+    background: #fff;
+}
+
+.btn {
+    background: #007aff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    transition: opacity 0.2s;
+}
+
+.btn:active {
+    opacity: 0.8;
+}
+
+.btn-danger {
+    background: #ff3b30;
+}
+
+.btn-success {
+    background: #34c759;
+}
+
+/* Report Table */
+.report-table {
+    width: 100%;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.report-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.report-table th {
+    background: #f2f2f7;
+    padding: 12px 8px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    color: #636366;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.report-table td {
+    padding: 12px 8px;
+    font-size: 14px;
+    border-top: 1px solid #e5e5ea;
+}
+
+.total-row {
+    background: #f2f2f7;
+    font-weight: 600;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    padding: 20px;
+}
+
+.modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 320px;
+    width: 100%;
+}
+
+.modal-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.modal-text {
+    font-size: 14px;
+    color: #636366;
+    margin-bottom: 20px;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.modal-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.modal-btn-cancel {
+    background: #e5e5ea;
+    color: #000;
+}
+
+.modal-btn-confirm {
+    background: #007aff;
+    color: #fff;
+}
+
+/* Loading */
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #8e8e93;
+}
+
+.spinner {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    border: 3px solid #e5e5ea;
+    border-top-color: #007aff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Auth Button */
+.auth-btn {
+    padding: 8px 16px;
+    background: #007aff;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.auth-btn.logout {
+    background: #ff3b30;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+    <div class="header">
+        <h1>Timbrature</h1>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <span id="statusBadge" class="status-badge status-error">Offline</span>
+            <button id="authBtn" class="auth-btn" onclick="handleAuth()">Accedi</button>
+        </div>
+    </div>
+
+    <div class="content">
+        <!-- Home Page -->
+        <div id="homePage" class="page active">
+            <div class="timbrature-grid">
+                <button class="timbrature-btn btn-ingresso" onclick="timbra('B')">
+                    <span class="icon">🌅</span>
+                    <span>Ingresso Mattina</span>
+                    <span class="time" id="timeB">--:--</span>
+                </button>
+                
+                <button class="timbrature-btn btn-uscita" onclick="timbra('C')">
+                    <span class="icon">☀️</span>
+                    <span>Uscita Mattina</span>
+                    <span class="time" id="timeC">--:--</span>
+                </button>
+                
+                <button class="timbrature-btn btn-ingresso" onclick="timbra('D')">
+                    <span class="icon">🌤️</span>
+                    <span>Ingresso Pomeriggio</span>
+                    <span class="time" id="timeD">--:--</span>
+                </button>
+                
+                <button class="timbrature-btn btn-uscita" onclick="timbra('E')">
+                    <span class="icon">🌙</span>
+                    <span>Uscita Pomeriggio</span>
+                    <span class="time" id="timeE">--:--</span>
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Metadata</div>
+                <div class="form-group">
+                    <label>Sede</label>
+                    <select id="sede">
+                        <option value="RESINA FORLIVESE">RESINA FORLIVESE</option>
+                        <option value="MRS.OFA">MRS.OFA</option>
+                        <option value="VALLI E RICCI">VALLI E RICCI</option>
+                        <option value="SMART WORKING">SMART WORKING</option>
+                        <option value="ALTRO">ALTRO</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Note</label>
+                    <input type="text" id="note" placeholder="Aggiungi una nota...">
+                </div>
+                <button class="btn btn-success" onclick="salvaMetadata()">Salva Metadata</button>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Azioni</div>
+                <button class="btn btn-danger" onclick="svuotaOggi()">Svuota Oggi</button>
+            </div>
+        </div>
+
+        <!-- Report Page -->
+        <div id="reportPage" class="page">
+            <div class="card">
+                <div class="card-title">Filtri</div>
+                <div class="form-group">
+                    <label>Mese</label>
+                    <input type="month" id="filterMonth" onchange="loadReport()">
+                </div>
+                <div class="form-group">
+                    <label>Sede</label>
+                    <select id="filterSede" onchange="loadReport()">
+                        <option value="">Tutte</option>
+                        <option value="RESINA FORLIVESE">RESINA FORLIVESE</option>
+                        <option value="MRS.OFA">MRS.OFA</option>
+                        <option value="VALLI E RICCI">VALLI E RICCI</option>
+                        <option value="SMART WORKING">SMART WORKING</option>
+                        <option value="ALTRO">ALTRO</option>
+                    </select>
+                </div>
+                <button class="btn" onclick="exportCSV()">Esporta CSV</button>
+            </div>
+
+            <div id="reportContent">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Caricamento...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Page -->
+        <div id="settingsPage" class="page">
+            <div class="card">
+                <div class="card-title">Test & Debug</div>
+                <button class="btn" onclick="runTests()">Esegui Test</button>
+                <div id="testResults" style="margin-top: 16px; font-size: 14px; color: #636366;"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Info</div>
+                <p style="font-size: 14px; color: #636366; line-height: 1.5;">
+                    Sheet ID: 170Ds25...<br>
+                    Client ID: 706644...<br>
+                    Versione: 1.0.0
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-bar">
+        <div class="tab-item active" onclick="switchTab('homePage', this)">
+            <div class="tab-icon">🏠</div>
+            <div class="tab-label">Home</div>
+        </div>
+        <div class="tab-item" onclick="switchTab('reportPage', this)">
+            <div class="tab-icon">📊</div>
+            <div class="tab-label">Report</div>
+        </div>
+        <div class="tab-item" onclick="switchTab('settingsPage', this)">
+            <div class="tab-icon">⚙️</div>
+            <div class="tab-label">Settings</div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-title" id="modalTitle">Conferma</div>
+        <div class="modal-text" id="modalText">Vuoi procedere?</div>
+        <div class="modal-buttons">
+            <button class="modal-btn modal-btn-cancel" onclick="closeModal()">Annulla</button>
+            <button class="modal-btn modal-btn-confirm" id="modalConfirm">Conferma</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+<script>
+// Costanti
+const API_KEY = 'AIzaSyBpUWNfNnotZT9Rjpo8eqZYSlaQxECyXzM';
+const SHEET_ID = '170Ds25bfTMr9DHpjIymo1H9jhaNapBtH9_iwORpZ7Tg';
+const CLIENT_ID = '706644322027-s214qi7lgiqs3j4uu4g74pf0hgm89uf4.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+const RANGE = 'A:G';
+
+// State
+let tokenClient = null;
+let accessToken = null;
+let currentData = [];
+
+// Init
+window.onload = function() {
+    initGoogleAPI();
+    setCurrentMonth();
+    loadTodayData();
+};
+
+function initGoogleAPI() {
+    gapi.load('client', initClient);
+}
+
+async function initClient() {
+    try {
+        await gapi.client.init({
+            apiKey: API_KEY,
+            discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4']
+        });
+        
+        updateStatus('ready');
+        console.log('GAPI initialized');
+        
+        // Init OAuth2
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID,
+            scope: SCOPES,
+            callback: (response) => {
+                if (response.access_token) {
+                    accessToken = response.access_token;
+                    sessionStorage.setItem('access_token', accessToken);
+                    gapi.client.setToken({ access_token: accessToken });
+                    updateStatus('connected');
+                    updateAuthButton(true);
+                }
+            }
+        });
+        
+        // Check saved token
+        const savedToken = sessionStorage.getItem('access_token');
+        if (savedToken) {
+            accessToken = savedToken;
+            gapi.client.setToken({ access_token: savedToken });
+            updateStatus('connected');
+            updateAuthButton(true);
+        }
+        
+    } catch (error) {
+        console.error('Init error:', error);
+        updateStatus('error');
+    }
+}
+
+function updateStatus(status) {
+    const badge = document.getElementById('statusBadge');
+    badge.className = 'status-badge';
+    
+    if (status === 'ready') {
+        badge.classList.add('status-ready');
+        badge.textContent = 'Pronto';
+    } else if (status === 'connected') {
+        badge.classList.add('status-connected');
+        badge.textContent = 'Connesso';
+    } else {
+        badge.classList.add('status-error');
+        badge.textContent = 'Errore';
+    }
+}
+
+function updateAuthButton(isLoggedIn) {
+    const btn = document.getElementById('authBtn');
+    if (isLoggedIn) {
+        btn.textContent = 'Esci';
+        btn.classList.add('logout');
+    } else {
+        btn.textContent = 'Accedi';
+        btn.classList.remove('logout');
+    }
+}
+
+function handleAuth() {
+    if (accessToken) {
+        // Logout
+        google.accounts.oauth2.revoke(accessToken, () => {
+            accessToken = null;
+            sessionStorage.removeItem('access_token');
+            gapi.client.setToken(null);
+            updateStatus('ready');
+            updateAuthButton(false);
+        });
+    } else {
+        // Login
+        tokenClient.requestAccessToken();
+    }
+}
+
+// Tab switching
+function switchTab(pageId, tabElement) {
+    // Hide all pages
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    // Show selected page
+    document.getElementById(pageId).classList.add('active');
+    
+    // Update tab styling
+    document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+    tabElement.classList.add('active');
+    
+    // Load data if report page
+    if (pageId === 'reportPage') {
+        loadReport();
+    }
+}
+
+// Date helpers
+function getToday() {
+    return new Date().toISOString().split('T')[0];
+}
+
+function getCurrentTime() {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+}
+
+function getDayName() {
+    const days = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
+    return days[new Date().getDay()];
+}
+
+function setCurrentMonth() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    document.getElementById('filterMonth').value = `${year}-${month}`;
+}
+
+// Load today's data
+async function loadTodayData() {
+    try {
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: RANGE
+        });
+        
+        const rows = response.result.values || [];
+        const today = getToday();
+        const todayRow = rows.find(row => row[0] === today);
+        
+        if (todayRow) {
+            document.getElementById('timeB').textContent = todayRow[1] || '--:--';
+            document.getElementById('timeC').textContent = todayRow[2] || '--:--';
+            document.getElementById('timeD').textContent = todayRow[3] || '--:--';
+            document.getElementById('timeE').textContent = todayRow[4] || '--:--';
+            
+            if (todayRow[5]) {
+                const parts = todayRow[5].split(' — ');
+                if (parts[0]) document.getElementById('sede').value = parts[0];
+                if (parts[1]) document.getElementById('note').value = parts[1];
+            }
+        }
+    } catch (error) {
+        console.error('Error loading today data:', error);
+    }
+}
+
+// Timbratura
+async function timbra(column) {
+    if (!accessToken) {
+        alert('Devi effettuare il login per timbrare');
+        handleAuth();
+        return;
+    }
+    
+    const columnIndex = { 'B': 1, 'C': 2, 'D': 3, 'E': 4 }[column];
+    const time = getCurrentTime();
+    const today = getToday();
+    
+    try {
+        // Get current data
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: RANGE
+        });
+        
+        const rows = response.result.values || [];
+        const todayRowIndex = rows.findIndex(row => row[0] === today);
+        
+        if (todayRowIndex === -1) {
+            // Create new row
+            const sede = document.getElementById('sede').value;
+            const note = document.getElementById('note').value;
+            const metadata = note ? `${sede} — ${note}` : sede;
+            
+            const newRow = [today, '', '', '', '', metadata, getDayName()];
+            newRow[columnIndex] = time;
+            
+            await gapi.client.sheets.spreadsheets.values.append({
+                spreadsheetId: SHEET_ID,
+                range: 'A:G',
+                valueInputOption: 'RAW',
+                resource: { values: [newRow] }
+            });
+        } else {
+            // Update existing row
+            const existingValue = rows[todayRowIndex][columnIndex];
+            
+            if (existingValue) {
+                const confirmed = await showConfirmModal(
+                    'Sovrascrivere?',
+                    `Vuoi sovrascrivere ${existingValue} con ${time}?`
+                );
+                if (!confirmed) return;
+            }
+            
+            const updateRange = `${String.fromCharCode(65 + columnIndex)}${todayRowIndex + 1}`;
+            await gapi.client.sheets.spreadsheets.values.update({
+                spreadsheetId: SHEET_ID,
+                range: updateRange,
+                valueInputOption: 'RAW',
+                resource: { values: [[time]] }
+            });
+        }
+        
+        // Update UI
+        document.getElementById(`time${column}`).textContent = time;
+        
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Errore durante la timbratura. Verifica i permessi.');
+    }
+}
+
+// Save metadata
+async function salvaMetadata() {
+    if (!accessToken) {
+        alert('Devi effettuare il login');
+        handleAuth();
+        return;
+    }
+    
+    const sede = document.getElementById('sede').value;
+    const note = document.getElementById('note').value;
+    const metadata = note ? `${sede} — ${note}` : sede;
+    const today = getToday();
+    
+    try {
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: RANGE
+        });
+        
+        const rows = response.result.values || [];
+        const todayRowIndex = rows.findIndex(row => row[0] === today);
+        
+        if (todayRowIndex === -1) {
+            alert('Nessuna timbratura per oggi. Timbra prima di salvare metadata.');
+            return;
+        }
+        
+        await gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId: SHEET_ID,
+            range: `F${todayRowIndex + 1}`,
+            valueInputOption: 'RAW',
+            resource: { values: [[metadata]] }
+        });
+        
+        alert('Metadata salvati');
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Errore nel salvataggio');
+    }
+}
+
+// Clear today
+async function svuotaOggi() {
+    if (!accessToken) {
+        alert('Devi effettuare il login');
+        handleAuth();
+        return;
+    }
+    
+    const confirmed = await showConfirmModal(
+        'Svuota oggi?',
+        'Vuoi cancellare tutte le timbrature di oggi?'
+    );
+    if (!confirmed) return;
+    
+    const today = getToday();
+    
+    try {
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: RANGE
+        });
+        
+        const rows = response.result.values || [];
+        const todayRowIndex = rows.findIndex(row => row[0] === today);
+        
+        if (todayRowIndex === -1) {
+            alert('Nessuna timbratura per oggi');
+            return;
+        }
+        
+        await gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId: SHEET_ID,
+            range: `B${todayRowIndex + 1}:E${todayRowIndex + 1}`,
+            valueInputOption: 'RAW',
+            resource: { values: [['', '', '', '']] }
+        });
+        
+        // Update UI
+        ['B', 'C', 'D', 'E'].forEach(col => {
+            document.getElementById(`time${col}`).textContent = '--:--';
+        });
+        
+        alert('Timbrature di oggi cancellate');
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Errore nella cancellazione');
+    }
+}
+
+// Report
+async function loadReport() {
+    const month = document.getElementById('filterMonth').value;
+    const sedeFilter = document.getElementById('filterSede').value;
+    const container = document.getElementById('reportContent');
+    
+    container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Caricamento...</p></div>';
+    
+    try {
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: RANGE
+        });
+        
+        let rows = response.result.values || [];
+        
+        // Filter by month
+        if (month) {
+            rows = rows.filter(row => row[0] && row[0].startsWith(month));
+        }
+        
+        // Filter by sede
+        if (sedeFilter) {
+            rows = rows.filter(row => row[5] && row[5].startsWith(sedeFilter));
+        }
+        
+        // Calculate hours
+        currentData = rows.map(row => {
+            const ore = calcolaOre(row[1], row[2], row[3], row[4]);
+            return [...row, ore];
+        });
+        
+        // Calculate total
+        const totale = currentData.reduce((sum, row) => sum + row[7], 0);
+        
+        // Build HTML
+        let html = '<div class="report-table"><table>';
+        html += '<thead><tr>';
+        html += '<th>Data</th><th>Mattina</th><th>Pomeriggio</th><th>Ore</th>';
+        html += '</tr></thead><tbody>';
+        
+        currentData.forEach(row => {
+            html += '<tr>';
+            html += `<td>${row[0] || ''}</td>`;
+            html += `<td>${row[1] || ''} - ${row[2] || ''}</td>`;
+            html += `<td>${row[3] || ''} - ${row[4] || ''}</td>`;
+            html += `<td>${row[7].toFixed(2)}</td>`;
+            html += '</tr>';
+        });
+        
+        html += `<tr class="total-row">`;
+        html += `<td colspan="3">Totale Ore</td>`;
+        html += `<td>${totale.toFixed(2)}</td>`;
+        html += '</tr>';
+        
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Error loading report:', error);
+        container.innerHTML = '<div class="card"><p>Errore nel caricamento del report</p></div>';
+    }
+}
+
+function calcolaOre(inMattina, outMattina, inPomeriggio, outPomeriggio) {
+    let totale = 0;
+    
+    if (inMattina && outMattina) {
+        const [inH, inM] = inMattina.split(':').map(Number);
+        const [outH, outM] = outMattina.split(':').map(Number);
+        totale += (outH * 60 + outM - inH * 60 - inM) / 60;
+    }
+    
+    if (inPomeriggio && outPomeriggio) {
+        const [inH, inM] = inPomeriggio.split(':').map(Number);
+        const [outH, outM] = outPomeriggio.split(':').map(Number);
+        totale += (outH * 60 + outM - inH * 60 - inM) / 60;
+    }
+    
+    return Math.max(0, totale);
+}
+
+// Export CSV
+function exportCSV() {
+    if (currentData.length === 0) {
+        alert('Nessun dato da esportare');
+        return;
+    }
+    
+    let csv = 'Data,Ingresso Mattina,Uscita Mattina,Ingresso Pomeriggio,Uscita Pomeriggio,Note,Giorno,Ore\n';
+    
+    currentData.forEach(row => {
+        const line = [
+            row[0] || '',
+            row[1] || '',
+            row[2] || '',
+            row[3] || '',
+            row[4] || '',
+            row[5] || '',
+            row[6] || '',
+            row[7].toFixed(2)
+        ].map(cell => `"${cell}"`).join(',');
+        csv += line + '\n';
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    const month = document.getElementById('filterMonth').value || 'export';
+    link.setAttribute('href', url);
+    link.setAttribute('download', `timbrature_${month}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// Modal
+function showConfirmModal(title, text) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('modal');
+        document.getElementById('modalTitle').textContent = title;
+        document.getElementById('modalText').textContent = text;
+        
+        const confirmBtn = document.getElementById('modalConfirm');
+        confirmBtn.onclick = () => {
+            closeModal();
+            resolve(true);
+        };
+        
+        modal.classList.add('active');
+    });
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.remove('active');
+}
+
+// Tests
+async function runTests() {
+    const results = document.getElementById('testResults');
+    results.innerHTML = 'Esecuzione test...<br>';
+    
+    // Test 1: Read test
+    try {
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: 'A1:A10'
+        });
+        const rows = response.result.values || [];
+        results.innerHTML += `✅ Test 1: Lettura OK (${rows.length} righe)<br>`;
+    } catch (error) {
+        results.innerHTML += `❌ Test 1: Errore lettura - ${error.message}<br>`;
+    }
+    
+    // Test 2: Auth check
+    if (accessToken) {
+        results.innerHTML += '✅ Test 2: Autenticato<br>';
+        
+        // Test 3: Write test (only if authenticated)
+        try {
+            const testDate = '2024-01-01';
+            const testRange = 'A999';
+            
+            await gapi.client.sheets.spreadsheets.values.update({
+                spreadsheetId: SHEET_ID,
+                range: testRange,
+                valueInputOption: 'RAW',
+                resource: { values: [[testDate]] }
+            });
+            
+            results.innerHTML += '✅ Test 3: Scrittura OK<br>';
+            
+            // Clean up test
+            await gapi.client.sheets.spreadsheets.values.clear({
+                spreadsheetId: SHEET_ID,
+                range: testRange
+            });
+            
+        } catch (error) {
+            results.innerHTML += `❌ Test 3: Errore scrittura - ${error.message}<br>`;
+            results.innerHTML += 'Suggerimento: Verifica redirect URI e scope in Google Cloud Console<br>';
+        }
+    } else {
+        results.innerHTML += '⚠️ Test 2: Non autenticato (login richiesto per test scrittura)<br>';
+    }
+    
+    // Test 4: Calculate hours
+    const ore = calcolaOre('08:00', '12:00', '14:00', '18:00');
+    if (ore === 8) {
+        results.innerHTML += '✅ Test 4: Calcolo ore OK<br>';
+    } else {
+        results.innerHTML += `❌ Test 4: Calcolo ore errato (${ore} invece di 8)<br>`;
+    }
+    
+    results.innerHTML += '<br>Test completati!';
+}
